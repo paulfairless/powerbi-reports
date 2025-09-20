@@ -1,15 +1,15 @@
-# Power BI Report Deployment with Terraform and GitHub Actions
+# Paginated Report Deployment with PowerShell and GitHub Actions
 
-This repository contains a solution for deploying Power BI reports to different environments (non-prod and prod) using Terraform and GitHub Actions.
+This repository contains a streamlined solution for deploying Power BI paginated reports (`.rdl` files) to different environments using PowerShell and GitHub Actions.
 
 ## Solution Overview
 
-The solution uses a modular Terraform configuration to manage Power BI reports. It is designed to support:
--   Multiple environments (e.g., non-prod, prod).
--   Common and bespoke reports.
--   Assignment of a service principal for data connectivity.
+This solution uses a PowerShell script to interact with the Power BI REST API, providing a direct and focused way to manage your paginated reports.
 
-A GitHub Actions workflow automates the deployment process.
+The key features are:
+-   **Environment-specific configurations:** Use JSON files to manage settings for your non-prod and prod environments.
+-   **Automated deployment:** A PowerShell script handles the connection to Power BI, uploads reports, and configures their datasources.
+-   **CI/CD Pipeline:** A GitHub Actions workflow automates the entire process, with separate jobs for non-prod and prod, including a manual approval step for production deployments.
 
 ### Directory Structure
 
@@ -17,61 +17,49 @@ A GitHub Actions workflow automates the deployment process.
 .
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml
-├── terraform/
-│   ├── modules/
-│   │   └── powerbi_report/
-│   │       ├── main.tf
-│   │       ├── variables.tf
-│   │       └── outputs.tf
-│   ├── environments/
-│   │   ├── non-prod/
-│   │   │   ├── main.tf
-│   │   │   ├── variables.tf
-│   │   │   └── terraform.tfvars
-│   │   └── prod/
-│   │       ├── main.tf
-│   │       ├── variables.tf
-│   │       └── terraform.tfvars
-│   └── reports/
-│       ├── common/
-│       │   └── report1.pbix
-│       └── customerA/
-│           └── bespoke_report.pbix
-└── README.md
+│       └── deploy-paginated-reports.yml
+├── scripts/
+│   └── Deploy-PaginatedReports.ps1
+└── reports/
+    ├── non-prod/
+    │   └── config.json
+    ├── prod/
+    │   └── config.json
+    └── rdl/
+        └── SampleReport.rdl
 ```
 
 ## How to Use
 
 1.  **Clone the repository.**
 
-2.  **Configure Terraform Variables:**
-    -   Update the `terraform.tfvars` files in `terraform/environments/non-prod` and `terraform/environments/prod` with your specific tenant IDs, subscription IDs, Power BI workspace IDs, and database connection details.
+2.  **Add your `.rdl` files:**
+    -   Place your paginated report files in the `reports/rdl` directory.
 
-3.  **Configure GitHub Secrets:**
+3.  **Configure your environments:**
+    -   Update the `config.json` files in `reports/non-prod` and `reports/prod` with your Power BI workspace names and the connection details for your datasources.
+
+4.  **Configure GitHub Secrets:**
     -   In your GitHub repository, go to `Settings > Secrets and variables > Actions`.
-    -   Create the following secrets for both your non-prod and prod environments:
-        -   `ARM_CLIENT_ID_NON_PROD`, `ARM_CLIENT_SECRET_NON_PROD`, `ARM_SUBSCRIPTION_ID_NON_PROD`, `ARM_TENANT_ID_NON_PROD`
-        -   `ARM_CLIENT_ID_PROD`, `ARM_CLIENT_SECRET_PROD`, `ARM_SUBSCRIPTION_ID_PROD`, `ARM_TENANT_ID_PROD`
-    -   These secrets should contain the credentials for a service principal that has permissions to create resources in your Azure subscription and manage Power BI.
-
-4.  **Add your `.pbix` files:**
-    -   Place your common and bespoke `.pbix` report files in the `terraform/reports` directory, following the existing structure.
-    -   Update the `main.tf` files in the `terraform/environments` directories to point to your new reports.
+    -   Create the following secrets:
+        -   `TENANT_ID`: The ID of your Azure AD tenant.
+        -   `APP_ID_NON_PROD`: The Application (client) ID of the service principal for your non-prod environment.
+        -   `APP_SECRET_NON_PROD`: The client secret for the non-prod service principal.
+        -   `APP_ID_PROD`: The Application (client) ID of the service principal for your prod environment.
+        -   `APP_SECRET_PROD`: The client secret for the prod service principal.
+    -   Ensure that the service principals have the necessary permissions (e.g., `Workspace.ReadWrite.All`, `Report.ReadWrite.All`) in your Power BI tenants.
 
 5.  **Push to `main`:**
-    -   Push your changes to the `main` branch to trigger the GitHub Actions workflow.
+    -   Push your changes to the `main` branch. The GitHub Actions workflow will automatically trigger, deploying your reports to the non-prod environment first, and then pausing for manual approval before deploying to production.
 
-## Important Notes
+## PowerShell Script Details
 
-### Power BI Deployment Placeholder
+The `scripts/Deploy-PaginatedReports.ps1` script is the core of this solution. It is designed to be run from the root of the repository and performs the following actions:
+-   Installs the `MicrosoftPowerBIMgmt` module if it's not already present.
+-   Connects to Power BI using the provided service principal credentials.
+-   Reads the configuration for the specified environment.
+-   Finds all `.rdl` files in the `reports/rdl` directory.
+-   For each file, it uploads the report to the target workspace (overwriting if it exists).
+-   It then configures the datasource for the report.
 
-The Terraform module `powerbi_report` uses a `null_resource` with a `local-exec` provisioner as a placeholder for the actual deployment of the Power BI reports. This is because there is no official HashiCorp Terraform provider for Power BI.
-
-**To implement the actual deployment, you will need to:**
-1.  Create a script (e.g., PowerShell, Python) that uses the Power BI REST API to upload the `.pbix` files.
-2.  Modify the `main.tf` file in the `powerbi_report` module to execute your script. You can find guidance and examples in the comments within that file.
-
-### GitHub Actions Environments
-
-The GitHub Actions workflow uses environments (`non-prod` and `prod`). You may need to configure these in your repository settings (`Settings > Environments`) to add protection rules, such as manual approval for the production environment. The provided workflow is a basic template and can be customized to fit your specific needs.
+You can also run this script locally for testing purposes, provided you have PowerShell and the required module installed.

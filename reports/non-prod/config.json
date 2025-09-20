@@ -1,0 +1,10 @@
+{
+  "workspaceName": "Your-Non-Prod-Workspace-Name",
+  "datasource": {
+    "name": "YourDatasourceName",
+    "connectionDetails": {
+      "server": "your-non-prod-db-server.database.windows.net",
+      "database": "your-non-prod-db"
+    }
+  }
+}

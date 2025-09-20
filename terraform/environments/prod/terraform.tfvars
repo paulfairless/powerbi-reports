@@ -1,5 +1,0 @@
-tenant_id            = "your-prod-tenant-id"
-subscription_id      = "your-prod-subscription-id"
-workspace_id         = "your-prod-workspace-id"
-database_server_name = "your-prod-db-server"
-database_name        = "your-prod-db-name"
