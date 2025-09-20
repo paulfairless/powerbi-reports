@@ -4,7 +4,7 @@
 # You could use a local-exec provisioner to run a PowerShell or Python script.
 resource "null_resource" "powerbi_report" {
   triggers = {
-    report_path = var.report_path
+    report_md5 = filemd5(var.report_path)
   }
 
   provisioner "local-exec" {

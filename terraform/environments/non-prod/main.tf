@@ -52,16 +52,3 @@ module "customer_a_bespoke_report" {
   service_principal_id         = azuread_service_principal.powerbi_sp.id
   datasource_connection_string = "Server=${var.database_server_name};Database=${var.database_name};"
 }
-
-# Placeholder for the .pbix files
-resource "null_resource" "common_report_file" {
-  provisioner "local-exec" {
-    command = "echo 'placeholder for common report 1' > ../../../reports/common/report1.pbix"
-  }
-}
-
-resource "null_resource" "bespoke_report_file" {
-  provisioner "local-exec" {
-    command = "echo 'placeholder for bespoke report' > ../../../reports/customerA/bespoke_report.pbix"
-  }
-}
