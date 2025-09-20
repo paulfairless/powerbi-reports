@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-Deploys paginated reports (.rdl files) to a Power BI workspace and configures their datasources for a specific customer.
+Deploys Power BI reports (.pbix and .rdl) to a Power BI workspace and configures their datasources.
 
 .DESCRIPTION
-This script automates the deployment of paginated reports to Power BI. It connects to Power BI using a main service principal,
+This script automates the deployment of all Power BI reports. It connects to Power BI using a main service principal,
 and then uses a customer-specific service principal (defined in the config) for the datasource credentials.
+It handles both standard (.pbix) and paginated (.rdl) reports.
 
 .PARAMETER TenantId
 The ID of the Azure tenant for the main Power BI connection.
@@ -69,20 +70,42 @@ catch {
     Write-Error "Failed to get workspace '$workspaceName'. Make sure it exists and the service principal has access."
     exit 1
 }
-
 $workspaceId = $workspace.Id
 
-# Get all .rdl files
-$reportFiles = Get-ChildItem -Path "reports/rdl" -Filter "*.rdl"
+# Get all report files (.rdl and .pbix)
+$reportFiles = Get-ChildItem -Path "reports/rdl", "reports/pbix" -Recurse -Include "*.rdl", "*.pbix"
 
 if ($reportFiles.Count -eq 0) {
-    Write-Warning "No .rdl files found in the 'reports/rdl' directory."
+    Write-Warning "No report files found in 'reports/rdl' or 'reports/pbix'."
     exit 0
 }
 
+# --- Datasource Configuration Details ---
+$dsConfig = $config.datasource
+$connectionDetails = $dsConfig.connectionDetails
+$credConfig = $dsConfig.credentialDetails
+$dsAppId = $env:($credConfig.appIdSecretName)
+$dsAppSecret = $env:($credConfig.appSecretSecretName)
+
+if ([string]::IsNullOrEmpty($dsAppId) -or [string]::IsNullOrEmpty($dsAppSecret)) {
+    throw "Datasource service principal credentials not found in environment variables. Make sure secrets are mapped correctly in the GitHub Actions workflow."
+}
+
+$datasourceCredentials = [Microsoft.PowerBI.Api.V2.Models.CredentialDetails]::new(
+    (
+        [Microsoft.PowerBI.Api.V2.Models.ServicePrincipalCredentials]::new(
+            $dsAppId,
+            $dsAppSecret
+        )
+    ),
+    "ServicePrincipal",
+    "ReadWrite"
+)
+
+# --- Process each report ---
 foreach ($file in $reportFiles) {
     $reportName = $file.BaseName
-    Write-Host "Deploying report '$reportName' from file $($file.FullName)..."
+    Write-Host "--- Deploying report '$reportName' from file $($file.FullName)... ---"
 
     # Upload the report
     try {
@@ -94,38 +117,24 @@ foreach ($file in $reportFiles) {
         continue # Move to the next report
     }
 
-    # Configure the datasource
-    Write-Host "Configuring datasource for report '$reportName'..."
+    # Configure the datasource based on report type
+    Write-Host "Configuring datasource for '$reportName'..."
     try {
-        $datasource = Get-PowerBIDatasource -ReportId $report.Id -WorkspaceId $workspaceId -ErrorAction Stop
-
-        $dsConfig = $config.datasource
-        $connectionDetails = $dsConfig.connectionDetails
-
-        # Get the datasource credential details from the config
-        $credConfig = $dsConfig.credentialDetails
-        $dsAppId = $env:($credConfig.appIdSecretName)
-        $dsAppSecret = $env:($cred_config.appSecretSecretName)
-
-        if ([string]::IsNullOrEmpty($dsAppId) -or [string]::IsNullOrEmpty($dsAppSecret)) {
-            throw "Datasource service principal credentials not found in environment variables. Make sure secrets are mapped correctly in the GitHub Actions workflow."
+        if ($file.Extension -eq ".rdl") {
+            # This is a paginated report
+            $datasource = Get-PowerBIDatasource -ReportId $report.Id -WorkspaceId $workspaceId -ErrorAction Stop
+            Set-PowerBIDatasource -DatasourceId $datasource.DatasourceId -ReportId $report.Id -WorkspaceId $workspaceId -DatasourceDetails $connectionDetails -CredentialDetails $datasourceCredentials -ErrorAction Stop
         }
+        elseif ($file.Extension -eq ".pbix") {
+            # This is a standard Power BI report, so we need to configure the dataset
+            $dataset = Get-PowerBIDataset -WorkspaceId $workspaceId -Name $report.Name -ErrorAction Stop
+            $datasource = Get-PowerBIDatasource -DatasetId $dataset.Id -WorkspaceId $workspaceId -ErrorAction Stop
+            Set-PowerBIDatasource -DatasourceId $datasource.DatasourceId -DatasetId $dataset.Id -WorkspaceId $workspaceId -DatasourceDetails $connectionDetails -CredentialDetails $datasourceCredentials -ErrorAction Stop
 
-        # Create the credential object for the datasource
-        $datasourceCredentials = [Microsoft.PowerBI.Api.V2.Models.CredentialDetails]::new(
-            (
-                [Microsoft.PowerBI.Api.V2.Models.ServicePrincipalCredentials]::new(
-                    $dsAppId,
-                    $dsAppSecret
-                )
-            ),
-            "ServicePrincipal",
-            "ReadWrite"
-        )
-
-        Set-PowerBIDatasource -DatasourceId $datasource.DatasourceId -ReportId $report.Id -WorkspaceId $workspaceId -DatasourceDetails $connectionDetails -CredentialDetails $datasourceCredentials -ErrorAction Stop
-
-        Write-Host "Successfully configured datasource for report '$reportName'."
+            # Also update the dataset itself to use the service principal
+            Set-PowerBIDataset -Id $dataset.Id -WorkspaceId $workspaceId -DefaultMode "Push" -DefaultRetentionPolicy "None" -ErrorAction Stop
+        }
+        Write-Host "Successfully configured datasource for '$reportName'."
     }
     catch {
         Write-Error "Failed to configure datasource for report '$reportName'. Error: $_"

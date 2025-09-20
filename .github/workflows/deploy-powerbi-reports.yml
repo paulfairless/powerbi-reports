@@ -1,4 +1,4 @@
-name: Deploy Paginated Reports
+name: Deploy Power BI Reports
 
 on:
   workflow_dispatch:
@@ -61,11 +61,11 @@ jobs:
           DATASOURCE_SP_APP_ID_CUSTOMERB_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERB_PROD }}
           DATASOURCE_SP_APP_SECRET_CUSTOMERB_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERB_PROD }}
 
-      - name: Deploy Paginated Reports
+      - name: Deploy Power BI Reports
         uses: azure/powershell@v1
         with:
           inlineScript: |
-            ./scripts/Deploy-PaginatedReports.ps1 `
+            ./scripts/Deploy-PowerBIReports.ps1 `
               -TenantId "${{ secrets.TENANT_ID }}" `
               -AppId "${{ env.MAIN_APP_ID }}" `
               -AppSecret "${{ env.MAIN_APP_SECRET }}" `
