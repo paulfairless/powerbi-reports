@@ -1,48 +1,75 @@
 name: Deploy Paginated Reports
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'reports/**'
-      - 'scripts/**'
   workflow_dispatch:
+    inputs:
+      customer:
+        description: 'The customer to deploy for'
+        required: true
+        type: choice
+        options:
+          - customerA
+          - customerB
+      environment:
+        description: 'The environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - non-prod
+          - prod
 
 jobs:
-  deploy-non-prod:
-    name: "Deploy to Non-Prod"
+  deploy:
+    name: "Deploy to ${{ github.event.inputs.customer }} (${{ github.event.inputs.environment }})"
     runs-on: ubuntu-latest
-    environment: non-prod
+    environment: ${{ github.event.inputs.environment }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set up environment variables for secrets
+        id: set_secrets
+        run: |
+          CUSTOMER_UPPER=$(echo "${{ github.event.inputs.customer }}" | tr 'a-z' 'A-Z')
+          ENV_UPPER=$(echo "${{ github.event.inputs.environment }}" | tr 'a-z' 'A-Z' | sed 's/-/_/g')
+
+          MAIN_APP_ID_SECRET_NAME="APP_ID_${ENV_UPPER}"
+          MAIN_APP_SECRET_SECRET_NAME="APP_SECRET_${ENV_UPPER}"
+
+          DS_APP_ID_SECRET_NAME="DATASOURCE_SP_APP_ID_${CUSTOMER_UPPER}_${ENV_UPPER}"
+          DS_APP_SECRET_SECRET_NAME="DATASOURCE_SP_APP_SECRET_${CUSTOMER_UPPER}_${ENV_UPPER}"
+
+          echo "MAIN_APP_ID=${!MAIN_APP_ID_SECRET_NAME}" >> $GITHUB_ENV
+          echo "MAIN_APP_SECRET=${!MAIN_APP_SECRET_SECRET_NAME}" >> $GITHUB_ENV
+          echo "$DS_APP_ID_SECRET_NAME=${!DS_APP_ID_SECRET_NAME}" >> $GITHUB_ENV
+          echo "$DS_APP_SECRET_SECRET_NAME=${!DS_APP_SECRET_SECRET_NAME}" >> $GITHUB_ENV
+        env:
+          # Main SP secrets
+          APP_ID_NON_PROD: ${{ secrets.APP_ID_NON_PROD }}
+          APP_SECRET_NON_PROD: ${{ secrets.APP_SECRET_NON_PROD }}
+          APP_ID_PROD: ${{ secrets.APP_ID_PROD }}
+          APP_SECRET_PROD: ${{ secrets.APP_SECRET_PROD }}
+          # Datasource SP secrets for Customer A
+          DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD }}
+          DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD }}
+          DATASOURCE_SP_APP_ID_CUSTOMERA_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERA_PROD }}
+          DATASOURCE_SP_APP_SECRET_CUSTOMERA_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERA_PROD }}
+          # Datasource SP secrets for Customer B
+          DATASOURCE_SP_APP_ID_CUSTOMERB_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERB_NON_PROD }}
+          DATASOURCE_SP_APP_SECRET_CUSTOMERB_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERB_NON_PROD }}
+          DATASOURCE_SP_APP_ID_CUSTOMERB_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERB_PROD }}
+          DATASOURCE_SP_APP_SECRET_CUSTOMERB_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERB_PROD }}
+
       - name: Deploy Paginated Reports
         uses: azure/powershell@v1
         with:
           inlineScript: |
-            ./scripts/Deploy-PaginatedReports.ps1 -TenantId "${{ secrets.TENANT_ID }}" -AppId "${{ secrets.APP_ID_NON_PROD }}" -AppSecret "${{ secrets.APP_SECRET_NON_PROD }}" -Environment "non-prod"
-          errorActionPreference: "stop"
-          failOnStandardError: true
-
-  deploy-prod:
-    name: "Deploy to Prod"
-    runs-on: ubuntu-latest
-    needs: deploy-non-prod
-    environment:
-      name: prod
-      url: your-prod-environment-url # Optional
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Deploy Paginated Reports
-        uses: azure/powershell@v1
-        with:
-          inlineScript: |
-            ./scripts/Deploy-PaginatedReports.ps1 -TenantId "${{ secrets.TENANT_ID }}" -AppId "${{ secrets.APP_ID_PROD }}" -AppSecret "${{ secrets.APP_SECRET_PROD }}" -Environment "prod"
+            ./scripts/Deploy-PaginatedReports.ps1 `
+              -TenantId "${{ secrets.TENANT_ID }}" `
+              -AppId "${{ env.MAIN_APP_ID }}" `
+              -AppSecret "${{ env.MAIN_APP_SECRET }}" `
+              -CustomerName "${{ github.event.inputs.customer }}" `
+              -Environment "${{ github.event.inputs.environment }}"
           errorActionPreference: "stop"
           failOnStandardError: true

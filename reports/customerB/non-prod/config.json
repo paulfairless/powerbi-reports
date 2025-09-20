@@ -1,0 +1,15 @@
+{
+  "workspaceName": "CustomerB-Non-Prod-Workspace",
+  "datasource": {
+    "name": "CustomerBDatasource",
+    "connectionDetails": {
+      "server": "customerb-non-prod-db.database.windows.net",
+      "database": "customerb-non-prod-db"
+    },
+    "credentialDetails": {
+      "credentialType": "ServicePrincipal",
+      "appIdSecretName": "DATASOURCE_SP_APP_ID_CUSTOMERB_NON_PROD",
+      "appSecretSecretName": "DATASOURCE_SP_APP_SECRET_CUSTOMERB_NON_PROD"
+    }
+  }
+}

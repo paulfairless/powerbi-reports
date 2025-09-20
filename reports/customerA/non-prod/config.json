@@ -1,0 +1,15 @@
+{
+  "workspaceName": "CustomerA-Non-Prod-Workspace",
+  "datasource": {
+    "name": "CustomerADatasource",
+    "connectionDetails": {
+      "server": "customera-non-prod-db.database.windows.net",
+      "database": "customera-non-prod-db"
+    },
+    "credentialDetails": {
+      "credentialType": "ServicePrincipal",
+      "appIdSecretName": "DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD",
+      "appSecretSecretName": "DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD"
+    }
+  }
+}

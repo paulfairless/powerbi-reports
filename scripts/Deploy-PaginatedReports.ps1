@@ -1,23 +1,25 @@
 <#
 .SYNOPSIS
-Deploys paginated reports (.rdl files) to a Power BI workspace and configures their datasources.
+Deploys paginated reports (.rdl files) to a Power BI workspace and configures their datasources for a specific customer.
 
 .DESCRIPTION
-This script automates the deployment of paginated reports to Power BI. It connects to Power BI using a service principal,
-uploads the report files from a specified directory, and then configures the datasource for each report based on a
-JSON configuration file.
+This script automates the deployment of paginated reports to Power BI. It connects to Power BI using a main service principal,
+and then uses a customer-specific service principal (defined in the config) for the datasource credentials.
 
 .PARAMETER TenantId
-The ID of the Azure tenant.
+The ID of the Azure tenant for the main Power BI connection.
 
 .PARAMETER AppId
-The Application ID of the service principal.
+The Application ID of the main service principal used to connect to Power BI.
 
 .PARAMETER AppSecret
-The secret of the service principal.
+The secret of the main service principal.
+
+.PARAMETER CustomerName
+The name of the customer to deploy for. This corresponds to a folder in the 'reports' directory.
 
 .PARAMETER Environment
-The deployment environment (e.g., 'non-prod', 'prod'). This determines which configuration file to use.
+The deployment environment (e.g., 'non-prod', 'prod').
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -30,6 +32,9 @@ param(
     [string]$AppSecret,
 
     [Parameter(Mandatory = $true)]
+    [string]$CustomerName,
+
+    [Parameter(Mandatory = $true)]
     [string]$Environment
 )
 
@@ -39,12 +44,14 @@ if (-not (Get-Module -ListAvailable -Name MicrosoftPowerBIMgmt)) {
     Install-Module -Name MicrosoftPowerBIMgmt -Force -AcceptLicense
 }
 
-# Connect to Power BI using the service principal
+# Connect to Power BI using the main service principal
+Write-Host "Connecting to Power BI..."
 $credential = New-Object PSCredential($AppId, (ConvertTo-SecureString $AppSecret -AsPlainText -Force))
 Connect-PowerBIServiceAccount -Tenant $TenantId -ServicePrincipal -Credential $credential
 
-# Load environment configuration
-$configFile = "reports/$Environment/config.json"
+# Load customer and environment specific configuration
+$configFile = "reports/$CustomerName/$Environment/config.json"
+Write-Host "Loading configuration from $configFile..."
 if (-not (Test-Path $configFile)) {
     Write-Error "Configuration file not found at $configFile"
     exit 1
@@ -54,6 +61,7 @@ $config = Get-Content $configFile | ConvertFrom-Json
 $workspaceName = $config.workspaceName
 
 # Get the workspace ID
+Write-Host "Getting workspace ID for '$workspaceName'..."
 try {
     $workspace = Get-PowerBIWorkspace -Name $workspaceName -ErrorAction Stop
 }
@@ -91,11 +99,31 @@ foreach ($file in $reportFiles) {
     try {
         $datasource = Get-PowerBIDatasource -ReportId $report.Id -WorkspaceId $workspaceId -ErrorAction Stop
 
-        $connectionDetails = $config.datasource.connectionDetails
-        $credentialDetails = New-Object Microsoft.PowerBI.Api.V2.Models.DatasourceCredentialDetails
-        $credentialDetails.CredentialType = "None" # Using service principal for authentication
+        $dsConfig = $config.datasource
+        $connectionDetails = $dsConfig.connectionDetails
 
-        Set-PowerBIDatasource -DatasourceId $datasource.DatasourceId -ReportId $report.Id -WorkspaceId $workspaceId -DatasourceDetails $connectionDetails -CredentialDetails $credentialDetails -ErrorAction Stop
+        # Get the datasource credential details from the config
+        $credConfig = $dsConfig.credentialDetails
+        $dsAppId = $env:($credConfig.appIdSecretName)
+        $dsAppSecret = $env:($cred_config.appSecretSecretName)
+
+        if ([string]::IsNullOrEmpty($dsAppId) -or [string]::IsNullOrEmpty($dsAppSecret)) {
+            throw "Datasource service principal credentials not found in environment variables. Make sure secrets are mapped correctly in the GitHub Actions workflow."
+        }
+
+        # Create the credential object for the datasource
+        $datasourceCredentials = [Microsoft.PowerBI.Api.V2.Models.CredentialDetails]::new(
+            (
+                [Microsoft.PowerBI.Api.V2.Models.ServicePrincipalCredentials]::new(
+                    $dsAppId,
+                    $dsAppSecret
+                )
+            ),
+            "ServicePrincipal",
+            "ReadWrite"
+        )
+
+        Set-PowerBIDatasource -DatasourceId $datasource.DatasourceId -ReportId $report.Id -WorkspaceId $workspaceId -DatasourceDetails $connectionDetails -CredentialDetails $datasourceCredentials -ErrorAction Stop
 
         Write-Host "Successfully configured datasource for report '$reportName'."
     }

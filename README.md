@@ -1,15 +1,16 @@
 # Paginated Report Deployment with PowerShell and GitHub Actions
 
-This repository contains a streamlined solution for deploying Power BI paginated reports (`.rdl` files) to different environments using PowerShell and GitHub Actions.
+This repository contains a flexible solution for deploying Power BI paginated reports (`.rdl` files) to multiple customers and environments using PowerShell and GitHub Actions.
 
 ## Solution Overview
 
-This solution uses a PowerShell script to interact with the Power BI REST API, providing a direct and focused way to manage your paginated reports.
+This solution is designed for multi-tenant deployments where each customer has their own Power BI workspace and their own service principal for database access.
 
 The key features are:
--   **Environment-specific configurations:** Use JSON files to manage settings for your non-prod and prod environments.
--   **Automated deployment:** A PowerShell script handles the connection to Power BI, uploads reports, and configures their datasources.
--   **CI/CD Pipeline:** A GitHub Actions workflow automates the entire process, with separate jobs for non-prod and prod, including a manual approval step for production deployments.
+-   **Customer-centric configuration:** A directory structure organized by customer, making it easy to manage settings for each one.
+-   **Interactive deployment:** A GitHub Actions workflow that allows you to select which customer and which environment (`non-prod` or `prod`) you want to deploy to.
+-   **Dynamic PowerShell script:** A single script that handles the deployment logic for any customer and environment.
+-   **Secure credential management:** Uses GitHub secrets with a clear naming convention to manage credentials for both the main Power BI connection and customer-specific datasources.
 
 ### Directory Structure
 
@@ -21,45 +22,51 @@ The key features are:
 ├── scripts/
 │   └── Deploy-PaginatedReports.ps1
 └── reports/
-    ├── non-prod/
-    │   └── config.json
-    ├── prod/
-    │   └── config.json
+    ├── customerA/
+    │   ├── non-prod/
+    │   │   └── config.json
+    │   └── prod/
+    │       └── config.json
+    ├── customerB/
+    │   # ... same structure as customerA
     └── rdl/
         └── SampleReport.rdl
 ```
 
 ## How to Use
 
-1.  **Clone the repository.**
+### 1. Add your Reports
+-   Place your common `.rdl` files in the `reports/rdl` directory.
 
-2.  **Add your `.rdl` files:**
-    -   Place your paginated report files in the `reports/rdl` directory.
+### 2. Add and Configure a New Customer
+1.  **Create a directory** for your customer inside the `reports` folder (e.g., `reports/customerC`).
+2.  Inside the customer folder, create `non-prod` and `prod` subfolders.
+3.  **Add `config.json` files** to the `non-prod` and `prod` folders. Copy the structure from an existing customer and update the values for the new customer's workspace name and database details.
+4.  **Update the GitHub Actions workflow** (`.github/workflows/deploy-paginated-reports.yml`): Add the new customer's name to the `options` list under `inputs.customer`.
 
-3.  **Configure your environments:**
-    -   Update the `config.json` files in `reports/non-prod` and `reports/prod` with your Power BI workspace names and the connection details for your datasources.
+### 3. Configure GitHub Secrets
+-   In your GitHub repository, go to `Settings > Secrets and variables > Actions`.
+-   Add the following secrets. The workflow uses a naming convention to find the correct secret for each customer and environment.
 
-4.  **Configure GitHub Secrets:**
-    -   In your GitHub repository, go to `Settings > Secrets and variables > Actions`.
-    -   Create the following secrets:
-        -   `TENANT_ID`: The ID of your Azure AD tenant.
-        -   `APP_ID_NON_PROD`: The Application (client) ID of the service principal for your non-prod environment.
-        -   `APP_SECRET_NON_PROD`: The client secret for the non-prod service principal.
-        -   `APP_ID_PROD`: The Application (client) ID of the service principal for your prod environment.
-        -   `APP_SECRET_PROD`: The client secret for the prod service principal.
-    -   Ensure that the service principals have the necessary permissions (e.g., `Workspace.ReadWrite.All`, `Report.ReadWrite.All`) in your Power BI tenants.
+    **Main Service Principal (for connecting to Power BI):**
+    -   `TENANT_ID`: The ID of your Azure AD tenant.
+    -   `APP_ID_NON_PROD`: The App ID of the service principal for your non-prod environment.
+    -   `APP_SECRET_NON_PROD`: The secret for the non-prod service principal.
+    -   `APP_ID_PROD`: The App ID of the service principal for your prod environment.
+    -   `APP_SECRET_PROD`: The secret for the prod service principal.
 
-5.  **Push to `main`:**
-    -   Push your changes to the `main` branch. The GitHub Actions workflow will automatically trigger, deploying your reports to the non-prod environment first, and then pausing for manual approval before deploying to production.
+    **Datasource Service Principals (for each customer):**
+    -   Follow this pattern: `DATASOURCE_SP_APP_ID_<CUSTOMER_NAME>_<ENVIRONMENT>`
+    -   Example for `customerA`, `non-prod`:
+        -   `DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD`
+        -   `DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD`
+    -   Example for `customerA`, `prod`:
+        -   `DATASOURCE_SP_APP_ID_CUSTOMERA_PROD`
+        -   `DATASOURCE_SP_APP_SECRET_CUSTOMERA_PROD`
 
-## PowerShell Script Details
-
-The `scripts/Deploy-PaginatedReports.ps1` script is the core of this solution. It is designed to be run from the root of the repository and performs the following actions:
--   Installs the `MicrosoftPowerBIMgmt` module if it's not already present.
--   Connects to Power BI using the provided service principal credentials.
--   Reads the configuration for the specified environment.
--   Finds all `.rdl` files in the `reports/rdl` directory.
--   For each file, it uploads the report to the target workspace (overwriting if it exists).
--   It then configures the datasource for the report.
-
-You can also run this script locally for testing purposes, provided you have PowerShell and the required module installed.
+### 4. Run the Deployment
+1.  Go to the **Actions** tab in your GitHub repository.
+2.  In the left sidebar, click on the **Deploy Paginated Reports** workflow.
+3.  Click the **Run workflow** dropdown button on the right.
+4.  Select the **customer** and **environment** you want to deploy to.
+5.  Click the **Run workflow** button to start the deployment.
