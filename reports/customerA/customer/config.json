@@ -1,0 +1,15 @@
+{
+  "workspaceName": "CustomerA-Customer-Workspace",
+  "datasource": {
+    "name": "CustomerADatasource",
+    "connectionDetails": {
+      "server": "customera-customer-db.database.windows.net",
+      "database": "customera-customer-db"
+    },
+    "credentialDetails": {
+      "credentialType": "ServicePrincipal",
+      "appIdSecretName": "DATASOURCE_SP_APP_ID_CUSTOMERA_CUSTOMER",
+      "appSecretSecretName": "DATASOURCE_SP_APP_SECRET_CUSTOMERA_CUSTOMER"
+    }
+  }
+}

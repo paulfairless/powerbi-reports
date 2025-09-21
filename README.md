@@ -9,9 +9,8 @@ This solution is designed for multi-tenant deployments where each customer has t
 The key features are:
 -   **Universal Report Support:** Handles both standard Power BI reports (`.pbix`) and paginated reports (`.rdl`).
 -   **Customer-centric configuration:** A directory structure organized by customer, making it easy to manage settings for each one.
--   **Interactive deployment:** A GitHub Actions workflow that allows you to select which customer and which environment (`non-prod` or `prod`) you want to deploy to.
--   **Dynamic PowerShell script:** A single script that handles the deployment logic for any report type, customer, and environment.
--   **Secure credential management:** Uses GitHub secrets with a clear naming convention to manage credentials.
+-   **Interactive deployment:** A GitHub Actions workflow that allows you to select which customer and which environment (`developer` or `customer`) you want to deploy to.
+-   **Dynamic & Scalable:** The pipeline handles secrets dynamically. You do **not** need to edit the workflow file to add new customers, making it highly maintainable.
 
 ### Directory Structure
 
@@ -24,9 +23,9 @@ The key features are:
 │   └── Deploy-PowerBIReports.ps1
 └── reports/
     ├── customerA/
-    │   ├── non-prod/
+    │   ├── developer/
     │   │   └── config.json
-    │   └── prod/
+    │   └── customer/
     │       └── config.json
     ├── pbix/
     │   └── SamplePBIXReport.pbix
@@ -42,24 +41,27 @@ The key features are:
 
 ### 2. Add and Configure a New Customer
 1.  **Create a directory** for your customer inside the `reports` folder (e.g., `reports/customerC`).
-2.  Inside the customer folder, create `non-prod` and `prod` subfolders.
-3.  **Add `config.json` files** to the `non-prod` and `prod` folders. Copy the structure from an existing customer and update the values.
-4.  **Update the GitHub Actions workflow** (`.github/workflows/deploy-powerbi-reports.yml`): Add the new customer's name to the `options` list under `inputs.customer`.
+2.  Inside the customer folder, create `developer` and `customer` subfolders.
+3.  **Add `config.json` files** to these folders. Copy the structure from an existing customer and update the values for the new customer's workspace name and database details. The secret names inside this file must follow the naming convention described in the next section.
+4.  **Update the GitHub Actions workflow** (`.github/workflows/deploy-powerbi-reports.yml`): Add the new customer's name to the `options` list under `inputs.customer`. This is the only manual update needed in the workflow when adding a new customer.
 
 ### 3. Configure GitHub Secrets
 -   In your GitHub repository, go to `Settings > Secrets and variables > Actions`.
--   Add the following secrets.
+-   Add the following secrets. The workflow uses a naming convention to find the correct secret for each deployment.
 
     **Main Service Principal (for connecting to Power BI):**
     -   `TENANT_ID`: The ID of your Azure AD tenant.
-    -   `APP_ID_NON_PROD`, `APP_SECRET_NON_PROD`
-    -   `APP_ID_PROD`, `APP_SECRET_PROD`
+    -   `APP_ID_DEVELOPER`, `APP_SECRET_DEVELOPER`
+    -   `APP_ID_CUSTOMER`, `APP_SECRET_CUSTOMER`
 
     **Datasource Service Principals (for each customer):**
-    -   Follow this pattern: `DATASOURCE_SP_APP_ID_<CUSTOMER_NAME>_<ENVIRONMENT>`
-    -   Example for `customerA`, `non-prod`:
-        -   `DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD`
-        -   `DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD`
+    -   Follow this pattern: `DATASOURCE_SP_APP_ID_<CUSTOMER_NAME_UPPERCASE>_<ENVIRONMENT_UPPERCASE>`
+    -   Example for `customerA`, `developer` environment:
+        -   `DATASOURCE_SP_APP_ID_CUSTOMERA_DEVELOPER`
+        -   `DATASOURCE_SP_APP_SECRET_CUSTOMERA_DEVELOPER`
+    -   Example for `customerB`, `customer` environment:
+        -   `DATASOURCE_SP_APP_ID_CUSTOMERB_CUSTOMER`
+        -   `DATASOURCE_SP_APP_SECRET_CUSTOMERB_CUSTOMER`
 
 ### 4. Run the Deployment
 1.  Go to the **Actions** tab in your GitHub repository.

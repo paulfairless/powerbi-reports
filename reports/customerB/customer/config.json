@@ -1,0 +1,15 @@
+{
+  "workspaceName": "CustomerB-Customer-Workspace",
+  "datasource": {
+    "name": "CustomerBDatasource",
+    "connectionDetails": {
+      "server": "customerb-customer-db.database.windows.net",
+      "database": "customerb-customer-db"
+    },
+    "credentialDetails": {
+      "credentialType": "ServicePrincipal",
+      "appIdSecretName": "DATASOURCE_SP_APP_ID_CUSTOMERB_CUSTOMER",
+      "appSecretSecretName": "DATASOURCE_SP_APP_SECRET_CUSTOMERB_CUSTOMER"
+    }
+  }
+}

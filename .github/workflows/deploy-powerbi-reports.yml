@@ -15,8 +15,8 @@ on:
         required: true
         type: choice
         options:
-          - non-prod
-          - prod
+          - developer
+          - customer
 
 jobs:
   deploy:
@@ -30,36 +30,30 @@ jobs:
 
       - name: Set up environment variables for secrets
         id: set_secrets
+        env:
+          SECRETS_CONTEXT: ${{ toJSON(secrets) }}
         run: |
+          # Construct the dynamic secret names
           CUSTOMER_UPPER=$(echo "${{ github.event.inputs.customer }}" | tr 'a-z' 'A-Z')
-          ENV_UPPER=$(echo "${{ github.event.inputs.environment }}" | tr 'a-z' 'A-Z' | sed 's/-/_/g')
+          ENV_UPPER=$(echo "${{ github.event.inputs.environment }}" | tr 'a-z' 'A-Z')
 
           MAIN_APP_ID_SECRET_NAME="APP_ID_${ENV_UPPER}"
           MAIN_APP_SECRET_SECRET_NAME="APP_SECRET_${ENV_UPPER}"
-
           DS_APP_ID_SECRET_NAME="DATASOURCE_SP_APP_ID_${CUSTOMER_UPPER}_${ENV_UPPER}"
           DS_APP_SECRET_SECRET_NAME="DATASOURCE_SP_APP_SECRET_${CUSTOMER_UPPER}_${ENV_UPPER}"
 
-          echo "MAIN_APP_ID=${!MAIN_APP_ID_SECRET_NAME}" >> $GITHUB_ENV
-          echo "MAIN_APP_SECRET=${!MAIN_APP_SECRET_SECRET_NAME}" >> $GITHUB_ENV
-          echo "$DS_APP_ID_SECRET_NAME=${!DS_APP_ID_SECRET_NAME}" >> $GITHUB_ENV
-          echo "$DS_APP_SECRET_SECRET_NAME=${!DS_APP_SECRET_SECRET_NAME}" >> $GITHUB_ENV
-        env:
-          # Main SP secrets
-          APP_ID_NON_PROD: ${{ secrets.APP_ID_NON_PROD }}
-          APP_SECRET_NON_PROD: ${{ secrets.APP_SECRET_NON_PROD }}
-          APP_ID_PROD: ${{ secrets.APP_ID_PROD }}
-          APP_SECRET_PROD: ${{ secrets.APP_SECRET_PROD }}
-          # Datasource SP secrets for Customer A
-          DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERA_NON_PROD }}
-          DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERA_NON_PROD }}
-          DATASOURCE_SP_APP_ID_CUSTOMERA_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERA_PROD }}
-          DATASOURCE_SP_APP_SECRET_CUSTOMERA_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERA_PROD }}
-          # Datasource SP secrets for Customer B
-          DATASOURCE_SP_APP_ID_CUSTOMERB_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERB_NON_PROD }}
-          DATASOURCE_SP_APP_SECRET_CUSTOMERB_NON_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERB_NON_PROD }}
-          DATASOURCE_SP_APP_ID_CUSTOMERB_PROD: ${{ secrets.DATASOURCE_SP_APP_ID_CUSTOMERB_PROD }}
-          DATASOURCE_SP_APP_SECRET_CUSTOMERB_PROD: ${{ secrets.DATASOURCE_SP_APP_SECRET_CUSTOMERB_PROD }}
+          # Use jq to look up the secret values from the context
+          MAIN_APP_ID_VALUE=$(echo $SECRETS_CONTEXT | jq -r ".${MAIN_APP_ID_SECRET_NAME}")
+          MAIN_APP_SECRET_VALUE=$(echo $SECRETS_CONTEXT | jq -r ".${MAIN_APP_SECRET_SECRET_NAME}")
+          DS_APP_ID_VALUE=$(echo $SECRETS_CONTEXT | jq -r ".${DS_APP_ID_SECRET_NAME}")
+          DS_APP_SECRET_VALUE=$(echo $SECRETS_CONTEXT | jq -r ".${DS_APP_SECRET_SECRET_NAME}")
+
+          # Export secrets as environment variables for the next step
+          echo "MAIN_APP_ID=$MAIN_APP_ID_VALUE" >> $GITHUB_ENV
+          echo "MAIN_APP_SECRET=$MAIN_APP_SECRET_VALUE" >> $GITHUB_ENV
+          # The PowerShell script expects the datasource secrets to be named after the value in config.json
+          echo "$DS_APP_ID_SECRET_NAME=$DS_APP_ID_VALUE" >> $GITHUB_ENV
+          echo "$DS_APP_SECRET_SECRET_NAME=$DS_APP_SECRET_VALUE" >> $GITHUB_ENV
 
       - name: Deploy Power BI Reports
         uses: azure/powershell@v1
