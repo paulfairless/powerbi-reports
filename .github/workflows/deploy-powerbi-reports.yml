@@ -8,19 +8,19 @@ on:
         required: true
         type: choice
         options:
-          - customerA
-          - customerB
+          - ltht
+          - lthtnp
       environment:
         description: 'The environment to deploy to'
         required: true
         type: choice
         options:
-          - developer
-          - customer
+          - dev
+          - prod
 
 jobs:
   deploy:
-    name: "Deploy to ${{ github.event.inputs.customer }} (${{ github.event.inputs.environment }})"
+    name: "Deploy to (${{ github.event.inputs.environment }}) ${{ github.event.inputs.customer }}"
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
 
@@ -64,6 +64,9 @@ jobs:
               -AppId "${{ env.MAIN_APP_ID }}" `
               -AppSecret "${{ env.MAIN_APP_SECRET }}" `
               -CustomerName "${{ github.event.inputs.customer }}" `
-              -Environment "${{ github.event.inputs.environment }}"
+              -Environment "${{ github.event.inputs.environment }}" `
+              -SpId "${{ env.DS_APP_ID_VALUE }}" `
+              -SpSecret "${{ env.DS_APP_SECRET_VALUE }}"
           errorActionPreference: "stop"
           failOnStandardError: true
+          azPSVersion: "7.2"

@@ -37,6 +37,12 @@ param(
 
     [Parameter(Mandatory = $true)]
     [string]$Environment
+
+    [Parameter(Mandatory = $true)]
+    [string]$SpId
+
+    [Parameter(Mandatory = $true)]
+    [string]$SpSecret
 )
 
 # Install the Power BI module if it's not already installed
@@ -51,7 +57,7 @@ $credential = New-Object PSCredential($AppId, (ConvertTo-SecureString $AppSecret
 Connect-PowerBIServiceAccount -Tenant $TenantId -ServicePrincipal -Credential $credential
 
 # Load customer and environment specific configuration
-$configFile = "reports/$CustomerName/$Environment/config.json"
+$configFile = "reports/$Environment/$CustomerName/config.json"
 Write-Host "Loading configuration from $configFile..."
 if (-not (Test-Path $configFile)) {
     Write-Error "Configuration file not found at $configFile"
@@ -73,7 +79,7 @@ catch {
 $workspaceId = $workspace.Id
 
 # Get all report files (.rdl and .pbix)
-$reportFiles = Get-ChildItem -Path "reports/rdl", "reports/pbix" -Recurse -Include "*.rdl", "*.pbix"
+$reportFiles = Get-ChildItem -Path "reports/standard", -Recurse -Include "*.rdl", "*.pbix"
 
 if ($reportFiles.Count -eq 0) {
     Write-Warning "No report files found in 'reports/rdl' or 'reports/pbix'."
@@ -84,18 +90,12 @@ if ($reportFiles.Count -eq 0) {
 $dsConfig = $config.datasource
 $connectionDetails = $dsConfig.connectionDetails
 $credConfig = $dsConfig.credentialDetails
-$dsAppId = $env:($credConfig.appIdSecretName)
-$dsAppSecret = $env:($credConfig.appSecretSecretName)
-
-if ([string]::IsNullOrEmpty($dsAppId) -or [string]::IsNullOrEmpty($dsAppSecret)) {
-    throw "Datasource service principal credentials not found in environment variables. Make sure secrets are mapped correctly in the GitHub Actions workflow."
-}
 
 $datasourceCredentials = [Microsoft.PowerBI.Api.V2.Models.CredentialDetails]::new(
     (
         [Microsoft.PowerBI.Api.V2.Models.ServicePrincipalCredentials]::new(
-            $dsAppId,
-            $dsAppSecret
+            $SpId,
+            $SpSecret
         )
     ),
     "ServicePrincipal",
